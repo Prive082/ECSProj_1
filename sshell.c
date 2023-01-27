@@ -15,6 +15,7 @@ struct inputCmd
         char *args[MAX_ARGS];
         char *prevCmdInput;
         char *cmdOutput;
+        int appendYN;
         struct inputCmd *next;
 };
 
@@ -25,7 +26,7 @@ int parsePipe(char **ifMeta, struct inputCmd **currentCmd, char **token, char *m
                 // find position of metachar then only add the command to args list without redirect
                 int isMetaChar = strcspn(*token, metaChar);
                 (*currentCmd)->args[(*args_i)] = strndup(*token, isMetaChar);
-                printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
+                //printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
                 (*args_i)++;
 
                 // since end of args array, must add null
@@ -39,19 +40,20 @@ int parsePipe(char **ifMeta, struct inputCmd **currentCmd, char **token, char *m
                 (*currentCmd)->cmdOutput = NULL;
                 (*currentCmd)->prevCmdInput = NULL;
                 (*currentCmd)->next = NULL;
+                (*currentCmd)->appendYN = 0;
 
-                printf("Token: %s\n", *token);
+                //printf("Token: %s\n", *token);
                 if (*((*ifMeta) + 1) == '\0')
                 {
                         *token = strtok(NULL, " ");
                         (*currentCmd)->args[*args_i] = strdup(*token);
-                        printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
+                        //printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
                         (*args_i)++;
                 }
                 else
                 {
                         (*currentCmd)->args[*args_i] = strdup(*ifMeta + 1);
-                        printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
+                        //printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
                         (*args_i)++;
                 }
                 // Check if we are in instance Cmd < input or Cmd <input
@@ -69,56 +71,24 @@ int parsePipe(char **ifMeta, struct inputCmd **currentCmd, char **token, char *m
                 (*currentCmd)->cmdOutput = NULL;
                 (*currentCmd)->prevCmdInput = NULL;
                 (*currentCmd)->next = NULL;
+                (*currentCmd)->appendYN = 0;
 
-                printf("Token: %s\n", *token);
+                //printf("Token: %s\n", *token);
                 if (*((*ifMeta) + 1) == '\0')
                 {
                         *token = strtok(NULL, " ");
                         (*currentCmd)->args[*args_i] = strdup(*token);
-                        printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
+                        //printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
                         (*args_i)++;
                 }
                 else
                 {
                         (*currentCmd)->args[*args_i] = strdup(*ifMeta + 1);
-                        printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
+                        //printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
                         (*args_i)++;
                 }
         }
         return 0;
-}
-
-int mislocated(const struct inputCmd *head, const struct inputCmd *tail) {
-
-  // Error: cmd > output | cmd, cmd| cmd < input
-  if (head->next != NULL && head->cmdOutput != NULL) {
-    fprintf(stderr, "Error: mislocated output redirection\n");
-    return -1;
-  }
-
-  if (tail->prevCmdInput != NULL && tail != head) {
-    fprintf(stderr, "Error: mislocated input redirection\n");
-    return -1;
-  }
-
-  // Error cmd | cmd > cmd | cmd , cmd | cmd < cmd | cmd
-  head = head->next;
-  
-  while (head != NULL) {
-    if (head == tail)
-      break;
-
-    if (head->cmdOutput != NULL) {
-      fprintf(stderr, "Error: mislocated output redirection\n");
-      return -1;
-      
-    } else if (head->prevCmdInput != NULL) {
-      fprintf(stderr, "Error: mislocated input redirection\n");
-      return -1;
-    }
-    head = head->next;
-  }
-  return 0;
 }
 
 int parseRedir(char **ifMeta, struct inputCmd **storeCmd, char **token, char *metaChar, int *args_i)
@@ -130,11 +100,23 @@ int parseRedir(char **ifMeta, struct inputCmd **storeCmd, char **token, char *me
                 // find position of metachar then only add the command to args list without redirect
                 int isMetaChar = strcspn(*token, metaChar);
                 (*storeCmd)->args[(*args_i)] = strndup(*token, isMetaChar);
-                printf("Arg [%d]: %s\n", (*args_i), (*storeCmd)->args[(*args_i)]);
+                //printf("Arg [%d]: %s\n", (*args_i), (*storeCmd)->args[(*args_i)]);
                 (*args_i)++;
 
                 if (*(*(ifMeta) + 1) == '\0')
                 {
+                        *token = strtok(NULL, " ");
+                        if (*token == NULL)
+                        {
+                                fprintf(stderr, "Error: no output file");
+                                return -1;
+                        }
+                        if (*metaChar == '>')
+                                (*storeCmd)->cmdOutput = strdup(*token);
+                }
+                else if (*((*ifMeta) + 1) == **ifMeta)
+                {
+                        (*storeCmd)->appendYN = 1;
                         *token = strtok(NULL, " ");
                         if (*token == NULL)
                         {
@@ -159,6 +141,19 @@ int parseRedir(char **ifMeta, struct inputCmd **storeCmd, char **token, char *me
                 if (*(*(ifMeta) + 1) == '\0')
                 {
                         *token = strtok(NULL, " ");
+                        //printf("here\n");
+                        if (*token == NULL)
+                        {
+                                fprintf(stderr, "Error: no output file");
+                                return -1;
+                        }
+                        if (*metaChar == '>')
+                                (*storeCmd)->cmdOutput = strdup(*token);
+                }
+                else if (*((*ifMeta) + 1) == **ifMeta)
+                {
+                        (*storeCmd)->appendYN = 1;
+                        *token = strtok(NULL, " ");
                         if (*token == NULL)
                         {
                                 fprintf(stderr, "Error: no output file");
@@ -175,13 +170,68 @@ int parseRedir(char **ifMeta, struct inputCmd **storeCmd, char **token, char *me
         }
         return 0;
 }
+
+int parseBG(struct inputCmd **storeCmd, char **token, char *metaChar, int *args_i)
+{
+        char *bgToken = strtok((*token), metaChar);
+        (*storeCmd)->args[*args_i] = strdup((bgToken));
+        //printf("Arg [%d]: %s\n", (*args_i), (*storeCmd)->args[(*args_i)]);
+        (*args_i)++;
+        return 0;
+}
+
+int mislocated(const struct inputCmd *head, const struct inputCmd *tail)
+{
+
+        // Error: cmd > output | cmd, cmd| cmd < input
+        if (head->next != NULL && head->cmdOutput != NULL)
+        {
+                fprintf(stderr, "Error: mislocated output redirection\n");
+                return -1;
+        }
+
+        if (tail->prevCmdInput != NULL && tail != head)
+        {
+                fprintf(stderr, "Error: mislocated input redirection\n");
+                return -1;
+        }
+
+        // Error cmd | cmd > cmd | cmd , cmd | cmd < cmd | cmd
+        head = head->next;
+
+        while (head != NULL)
+        {
+                if (head == tail)
+                        break;
+
+                if (head->cmdOutput != NULL)
+                {
+                        fprintf(stderr, "Error: mislocated output redirection\n");
+                        return -1;
+                }
+                else if (head->prevCmdInput != NULL)
+                {
+                        fprintf(stderr, "Error: mislocated input redirection\n");
+                        return -1;
+                }
+                head = head->next;
+        }
+        return 0;
+}
+
 int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
 {
         struct inputCmd *currentCmd = headCmd;
         int args_i = 0;
-        printf("Whole Command: %s\n", cmdCopy);
+        int cmdlen = strlen(cmdCopy) - 1;
+        if (strpbrk(cmdCopy, "&") && cmdCopy[cmdlen] != '&')
+        {
+                fprintf(stderr, "Error: mislocated background sign\n");
+                return -1;
+        }
+        //printf("Whole Command: %s\n", cmdCopy);
         char *token = strtok(cmdCopy, " ");
-        printf("Token: %s\n", token);
+        //printf("Token: %s\n", token);
         while (token != NULL)
         {
                 if (args_i > MAX_ARGS - 1)
@@ -195,20 +245,25 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
                         return -1;
                 }
                 // sets pointer if Redirect or pipeline
-                char *ifMeta = strpbrk(token, ">|");
-
+                char *ifMeta = strpbrk(token, ">|&");
                 if (ifMeta != NULL)
                 {
                         switch (*ifMeta)
                         {
+                        case '>':
+                                if (parseRedir(&ifMeta, &currentCmd, &token, ">", &args_i) == -1)
+                                {
+                                        return -1;
+                                }
+                                break;
                         case '|':
                                 if (parsePipe(&ifMeta, &currentCmd, &token, "|", &args_i) == -1)
                                 {
                                         return -1;
                                 }
                                 break;
-                        case '>':
-                                if (parseRedir(&ifMeta, &currentCmd, &token, ">", &args_i) == -1)
+                        case '&':
+                                if (parseBG(&currentCmd, &token, "&", &args_i) == -1)
                                 {
                                         return -1;
                                 }
@@ -218,11 +273,11 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
                 else
                 { // no metachars present
                         currentCmd->args[args_i] = token;
-                        printf("Arg [%d]: %s\n", args_i, currentCmd->args[args_i]);
+                        //printf("Arg [%d]: %s\n", args_i, currentCmd->args[args_i]);
                         args_i++;
                 }
                 token = strtok(NULL, " ");
-                printf("Token: %s\n", token);
+                //printf("Token: %s\n", token);
         }
         currentCmd->args[args_i] = NULL;
 
@@ -246,15 +301,18 @@ static void redir(struct inputCmd *storeCmd)
 
         if (storeCmd->cmdOutput != NULL)
         {
-                int fd = open(storeCmd->cmdOutput, O_WRONLY | O_TRUNC);
-                dup2(fd, STDOUT_FILENO);
-                close(fd);
-        }
-        else if (storeCmd->prevCmdInput != NULL)
-        {
-                int fd = open(storeCmd->prevCmdInput, O_RDONLY);
-                dup2(fd, STDIN_FILENO);
-                close(fd);
+                if (storeCmd->appendYN == 0)
+                {
+                        int fd = open(storeCmd->cmdOutput, O_WRONLY | O_TRUNC);
+                        dup2(fd, STDOUT_FILENO);
+                        close(fd);
+                }
+                else if (storeCmd->appendYN == 1)
+                {
+                        int fd = open(storeCmd->cmdOutput, O_WRONLY | O_APPEND);
+                        dup2(fd, STDOUT_FILENO);
+                        close(fd);
+                }
         }
 }
 
@@ -350,8 +408,8 @@ int pipeExecute(struct inputCmd *head, char *cmd)
 
                         if (execvp(currentCmd->args[0], currentCmd->args) < 0)
                         {
-                                perror(*currentCmd->args);
-                                exit(EXIT_FAILURE);
+                                fprintf(stderr, "Error: command not found\n");
+                                exit(1);
                         }
                 }
                 else if (pid < 0)
@@ -367,27 +425,40 @@ int pipeExecute(struct inputCmd *head, char *cmd)
         {
                 close(pipeFds[i]);
         }
-
-        for (int i = 0; i < numPipes + 1; i++)
+        if (strpbrk(cmd, "&") != NULL)
         {
-                wait(&status);
+                waitpid(pid, &status, 0);
+                fprintf(stderr, "+ completed '%s' ", cmd);
 
-                if (i != 0 && status != 0)
+                for (int j = 0; j < statusArrLen; j++)
                 {
-                        statusArr[statusArrLen++] = WEXITSTATUS(status + 1);
+                        fprintf(stderr, "[%d]", statusArr[j]);
                 }
-                else
-                {
-                        statusArr[statusArrLen++] = WEXITSTATUS(status);
-                }
+                fprintf(stderr, "\n");
         }
-        fprintf(stderr, "+ completed '%s' ", cmd);
-
-        for (int j = 0; j < statusArrLen; j++)
+        else
         {
-                fprintf(stderr, "[%d]", statusArr[j]);
+                for (int i = 0; i < numPipes + 1; i++)
+                {
+                        wait(&status);
+
+                        if (i != 0 && status != 0)
+                        {
+                                statusArr[statusArrLen++] = WEXITSTATUS(status + 1);
+                        }
+                        else
+                        {
+                                statusArr[statusArrLen++] = WEXITSTATUS(status);
+                        }
+                }
+                fprintf(stderr, "+ completed '%s' ", cmd);
+
+                for (int j = 0; j < statusArrLen; j++)
+                {
+                        fprintf(stderr, "[%d]", statusArr[j]);
+                }
+                fprintf(stderr, "\n");
         }
-        fprintf(stderr, "\n");
         return 0;
 }
 
@@ -401,6 +472,7 @@ int main(void)
         {
                 // consider this our head node
                 struct inputCmd storeCmd;
+                storeCmd.appendYN = 0;
                 storeCmd.prevCmdInput = NULL;
                 storeCmd.cmdOutput = NULL;
                 storeCmd.next = NULL;
@@ -431,6 +503,7 @@ int main(void)
                 if (!strcmp(cmd, "exit"))
                 {
                         fprintf(stderr, "Bye...\n");
+                        fprintf(stderr, "+ completed '%s' [%d]\n", cmd, 0);
                         break;
                 }
 
@@ -438,7 +511,10 @@ int main(void)
                 char cmdCopy[CMDLINE_MAX];
                 strcpy(cmdCopy, cmd);
                 // parse the copy string
-                parseCommand(&storeCmd, cmdCopy);
+                if(parseCommand(&storeCmd, cmdCopy)== -1){
+                        freeLinked(&storeCmd);
+                        continue;
+                }
 
                 /* Regular command */
 
