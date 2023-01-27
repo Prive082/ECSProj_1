@@ -527,6 +527,8 @@ int main(void)
                         if (getcwd(buff, CMDLINE_MAX) == buff)
                         {
                                 printf("%s\n", buff);
+                                fprintf(stderr, "+ completed '%s' [%d]\n", cmd, 0);
+;
                         }
                         else
                         {
@@ -538,6 +540,8 @@ int main(void)
                         int result = chdir(storeCmd.args[1]);
                         if (result == 0)
                         {
+                                fprintf(stderr, "+ completed '%s' [%d]\n", cmd, 0);
+;
                         }
                         else
                         {
