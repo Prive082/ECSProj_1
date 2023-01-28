@@ -19,6 +19,7 @@ struct inputCmd
         struct inputCmd *next;
 };
 
+// implemented linked lists to keep track of a list of background jobs
 struct Jobs
 {
         int pids[MAX_ARGS];
@@ -30,6 +31,7 @@ struct Jobs
         struct Jobs *prev;
 };
 
+// Initialize Jobs node
 struct Jobs* initJobs()
 {
         struct Jobs *jobs = (struct Jobs*)malloc(sizeof(struct Jobs));
@@ -222,6 +224,7 @@ int parseRedir(char **ifMeta, struct inputCmd **storeCmd, char **token, char *me
 int parseBG(struct inputCmd **storeCmd, char **token, char *metaChar, int *args_i)
 {
         char *bgToken = strtok((*token), metaChar);
+        printf("Token: %s\n", bgToken);
         (*storeCmd)->args[*args_i] = strdup((bgToken));
         //printf("Arg [%d]: %s\n", (*args_i), (*storeCmd)->args[(*args_i)]);
         (*args_i)++;
@@ -403,6 +406,7 @@ int pipeCount(struct inputCmd *headCmd)
         return count - 1;
 }
 
+// function to wait for all the children in a job to exit and print their exit status
 void printStatus(char *cmd, int statusArr[], int statusArrLen) 
 {
         fprintf(stderr, "+ completed '%s' ", cmd);
@@ -414,6 +418,11 @@ void printStatus(char *cmd, int statusArr[], int statusArrLen)
         fprintf(stderr, "\n");
 }
 
+/**
+ * Function to handle background jobs by traversing through the previous nodes,
+ * which represents jobs that are still running in background and haven't finished yet
+ * When one background job was detected as finished, free that job node
+*/
 void bgJobHandling(struct Jobs *jobs)
 {
         
@@ -421,18 +430,23 @@ void bgJobHandling(struct Jobs *jobs)
         while (jobsTail)
         {
                 int status;
+                // flag for representing all child processes have exited
                 int allComplete = 1;
                 for (int i = 0; i < jobsTail->numProcess; i++)
                 {
+                        // waitpid returns the child's pid upon the child's exit
                         int isComplete = waitpid(jobsTail->pids[i], &status, WNOHANG);
                         if (isComplete)
                         {
                                 jobsTail->exitStats[i] = WEXITSTATUS(status);
                         }
+                        // since array exitStats[] was initialized with all entrys as -5,
+                        // finding one exit status with -5 means there's a child that hasn't finished
                         if (jobsTail->exitStats[i] == -5) {
                                 allComplete = 0;
                         }
                 }
+                // traverse to the previous node
                 struct Jobs* tempPrevJobHolder = jobsTail->prev;
                 if (allComplete) {
                         printStatus(jobsTail->cmd, jobsTail->exitStats, jobsTail->numProcess);
@@ -517,11 +531,12 @@ int pipeExecute(struct inputCmd *head, char *cmd, struct Jobs *jobs)
         {
                 close(pipeFds[i]);
         }
+        // if it's a background job, set the wait flag to 1 and skip the check for children exit
         if (strpbrk(cmd, "&") != NULL)
         {
                 jobs->wait = 1;
-                bgJobHandling(jobs);
         }
+        // wait untill all child processes exit
         else
         {
                 for (int i = 0; i < jobs->numProcess; i++)
@@ -529,6 +544,7 @@ int pipeExecute(struct inputCmd *head, char *cmd, struct Jobs *jobs)
                         waitpid(jobs->pids[i], &status, 0);
                         jobs->exitStats[i] = WEXITSTATUS(status);
                 }
+                // handle background jobs before each command returns
                 bgJobHandling(jobs);
                 printStatus(cmd, jobs->exitStats, jobs->numProcess);
         }
@@ -575,12 +591,15 @@ int main(void)
 
                 /* Builtin command */
                 if (strlen(cmd) == 0) {
+                        // handle background jobs before each command returns
                         bgJobHandling(jobs);
                         continue;
                 }
                 if (!strcmp(cmd, "exit"))
                 {
+                        // handle background jobs before each command returns
                         bgJobHandling(jobs);
+                        // check if there are still background jobs that are running
                         if (jobs->prev) {
                                 fprintf(stderr, "Error: active jobs still running\n");
                                 continue;
@@ -606,6 +625,7 @@ int main(void)
                         cmd, retval);*/
                 if (strcmp(storeCmd.args[0], "pwd") == 0)
                 {
+                        // handle background jobs before each command returns
                         bgJobHandling(jobs);
                         char buff[CMDLINE_MAX];
                         if (getcwd(buff, CMDLINE_MAX) == buff)
@@ -621,6 +641,7 @@ int main(void)
                 }
                 else if (strcmp(storeCmd.args[0], "cd") == 0)
                 {
+                        // handle background jobs before each command returns
                         bgJobHandling(jobs);
                         int result = chdir(storeCmd.args[1]);
                         if (result == 0)
@@ -642,10 +663,12 @@ int main(void)
                 jobs->next = initJobs();
                 jobs->next->prev = jobs;
                 jobs = jobs->next;
+                // if the last entered job is a background one, skip directly to next command prompt
                 if (jobs->prev->wait) 
                 {
                         continue;
                 }
+                // if not, free the last job, since it was definately completed
                 else 
                 {
                         freeJob(jobs->prev);
