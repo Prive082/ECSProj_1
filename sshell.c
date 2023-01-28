@@ -503,6 +503,7 @@ int pipeExecute(struct inputCmd *head, char *cmd, struct Jobs *jobs)
 
 void bgJobHandling(struct Jobs *jobs)
 {
+        
         struct Jobs *jobsTail = jobs->prev;
         while (jobsTail)
         {
@@ -565,6 +566,8 @@ int main(void)
                 nl = strchr(cmd, '\n');
                 if (nl)
                         *nl = '\0';
+                
+                bgJobHandling(jobs);
 
                 /* Builtin command */
                 if (strlen(cmd) == 0) {
@@ -573,6 +576,10 @@ int main(void)
                 }
                 if (!strcmp(cmd, "exit"))
                 {
+                        if (jobs->prev) {
+                                fprintf(stderr, "Error: active jobs still running\n");
+                                continue;
+                        }
                         fprintf(stderr, "Bye...\n");
                         fprintf(stderr, "+ completed '%s' [%d]\n", cmd, 0);
                         break;
@@ -635,7 +642,6 @@ int main(void)
                 else 
                 {
                         freeJob(jobs->prev);
-                        bgJobHandling(jobs);
                 }
 
         }
