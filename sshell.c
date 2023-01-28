@@ -30,15 +30,16 @@ struct Jobs
         struct Jobs *prev;
 };
 
-struct Jobs* initJobs()
+struct Jobs *initJobs()
 {
-        struct Jobs *jobs = (struct Jobs*)malloc(sizeof(struct Jobs));
+        struct Jobs *jobs = (struct Jobs *)malloc(sizeof(struct Jobs));
         jobs->next = NULL;
         jobs->prev = NULL;
         jobs->cmd = NULL;
         jobs->numProcess = 0;
         jobs->wait = 0;
-        for (int i = 0; i < MAX_ARGS; i++) {
+        for (int i = 0; i < MAX_ARGS; i++)
+        {
                 // Test if the child has exited or not
                 jobs->exitStats[i] = -5;
         }
@@ -48,9 +49,10 @@ struct Jobs* initJobs()
 /**
  * Free any single job node in a linked list of jobs
  * If the job is in the middle of the linked list, link the previous and next node together
-*/
-void freeJob(struct Jobs *job) {
-        if (job->prev && job->next) 
+ */
+void freeJob(struct Jobs *job)
+{
+        if (job->prev && job->next)
         {
                 job->prev->next = job->next;
                 job->next->prev = job->prev;
@@ -59,7 +61,7 @@ void freeJob(struct Jobs *job) {
         {
                 job->prev->next = NULL;
         }
-        else if (job->next) 
+        else if (job->next)
         {
                 job->next->prev = NULL;
         }
@@ -81,23 +83,24 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
         char *pipeCommands[MAX_ARGS];
         int pipe_i = 0;
         char *singleCommand = strtok(cmdCopy, "|");
-        while (singleCommand) 
+        while (singleCommand)
         {
                 pipeCommands[pipe_i++] = singleCommand;
                 singleCommand = strtok(NULL, "|");
         }
 
-        for (int i = 0; i < pipe_i; i++) {
+        for (int i = 0; i < pipe_i; i++)
+        {
                 char *process = pipeCommands[i];
                 char *redirect = strpbrk(process, ">");
                 char *background = strpbrk(process, "&");
-                
+
                 if (i < pipe_i - 1)
                 {
                         // Detect mislocated output and redirection sign
                         if (redirect)
                         {
-                                
+
                                 fprintf(stderr, "Error: mislocated output redirection\n");
                                 return -1;
                         }
@@ -124,9 +127,10 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
                         currentCmd->appendYN = 0;
                 }
                 // The last command in the pipeline would contain background sign or redirect sign
-                else 
+                else
                 {
-                        if (background) {
+                        if (background)
+                        {
                                 // Valid background sign need to be in the end of the argument
                                 if (process[strlen(process) - 1] != '&')
                                 {
@@ -134,13 +138,15 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
                                         return -1;
                                 }
                                 // If background sign valid, trim out the background sign
-                                else {
+                                else
+                                {
                                         process[strlen(process) - 1] = '\0';
                                 }
                         }
-                        if (redirect) {
+                        if (redirect)
+                        {
                                 // Detect append sign
-                                if (*(redirect+1) == '>') 
+                                if (*(redirect + 1) == '>')
                                 {
                                         currentCmd->appendYN = 1;
                                 }
@@ -150,7 +156,8 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
                                 char *file = strtok(NULL, ">");
 
                                 // if no entry after > sign
-                                if (file == NULL) {
+                                if (file == NULL)
+                                {
                                         fprintf(stderr, "Error: no output file\n");
                                         return -1;
                                 }
@@ -158,11 +165,12 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
                                 file = strtok(file, " ");
 
                                 // if entry after > is whitespace
-                                if (file == NULL) {
+                                if (file == NULL)
+                                {
                                         fprintf(stderr, "Error: no output file\n");
                                         return -1;
                                 }
-                                
+
                                 // Divide the command into individual arguments
                                 char *argument = strtok(command, " ");
                                 int args_i = 0;
@@ -183,10 +191,9 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
                                         return -1;
                                 }
                                 close(fd);
-                                
                         }
                         // if there's no redirect, simply treat process as line of arguments
-                        else 
+                        else
                         {
                                 char *argument = strtok(process, " ");
                                 int args_i = 0;
@@ -199,10 +206,8 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
                                 currentCmd->next = NULL;
                         }
                 }
-                
         }
         return 0;
-        
 }
 
 static void redir(struct inputCmd *storeCmd)
@@ -225,12 +230,11 @@ static void redir(struct inputCmd *storeCmd)
         }
 }
 
+// https://stackoverflow.com/questions/6417158/c-how-to-free-nodes-in-the-linked-list
 void freeLinked(struct inputCmd *head)
 {
         // strndup and strdup both allocate memory and need to be freed
-        if (head->prevCmdInput != NULL)
-                free(head->prevCmdInput);
-        else if (head->cmdOutput != NULL)
+        if (head->cmdOutput != NULL)
                 free(head->cmdOutput);
 
         struct inputCmd *next = head->next;
@@ -240,8 +244,6 @@ void freeLinked(struct inputCmd *head)
                 struct inputCmd *tmp = next;
                 next = next->next;
 
-                if (tmp->prevCmdInput != NULL)
-                        free(tmp->prevCmdInput);
                 if (tmp->cmdOutput != NULL)
                         free(tmp->cmdOutput);
 
@@ -264,7 +266,7 @@ int pipeCount(struct inputCmd *headCmd)
         return count - 1;
 }
 
-void printStatus(char *cmd, int statusArr[], int statusArrLen) 
+void printStatus(char *cmd, int statusArr[], int statusArrLen)
 {
         fprintf(stderr, "+ completed '%s' ", cmd);
 
@@ -277,7 +279,7 @@ void printStatus(char *cmd, int statusArr[], int statusArrLen)
 
 void bgJobHandling(struct Jobs *jobs)
 {
-        
+
         struct Jobs *jobsTail = jobs->prev;
         while (jobsTail)
         {
@@ -290,17 +292,19 @@ void bgJobHandling(struct Jobs *jobs)
                         {
                                 jobsTail->exitStats[i] = WEXITSTATUS(status);
                         }
-                        if (jobsTail->exitStats[i] == -5) {
+                        if (jobsTail->exitStats[i] == -5)
+                        {
                                 allComplete = 0;
                         }
                 }
-                struct Jobs* tempPrevJobHolder = jobsTail->prev;
-                if (allComplete) {
+                struct Jobs *tempPrevJobHolder = jobsTail->prev;
+                if (allComplete)
+                {
                         printStatus(jobsTail->cmd, jobsTail->exitStats, jobsTail->numProcess);
                         freeJob(jobsTail);
                 }
                 jobsTail = tempPrevJobHolder;
-        }        
+        }
 }
 
 int pipeExecute(struct inputCmd *head, char *cmd, struct Jobs *jobs)
@@ -310,7 +314,7 @@ int pipeExecute(struct inputCmd *head, char *cmd, struct Jobs *jobs)
         int status = EXIT_SUCCESS;
         int pipeFds[numPipes * 2];
         pid_t pid;
-        jobs->cmd = (char*)malloc(sizeof(char) * strlen(cmd));
+        jobs->cmd = (char *)malloc(sizeof(char) * strlen(cmd));
         strcpy(jobs->cmd, cmd);
 
         for (int i = 0; i < numPipes; i++)
@@ -435,14 +439,16 @@ int main(void)
                         *nl = '\0';
 
                 /* Builtin command */
-                if (strlen(cmd) == 0) {
+                if (strlen(cmd) == 0)
+                {
                         bgJobHandling(jobs);
                         continue;
                 }
                 if (!strcmp(cmd, "exit"))
                 {
                         bgJobHandling(jobs);
-                        if (jobs->prev) {
+                        if (jobs->prev)
+                        {
                                 fprintf(stderr, "Error: active jobs still running\n");
                                 continue;
                         }
@@ -455,7 +461,8 @@ int main(void)
                 char cmdCopy[CMDLINE_MAX];
                 strcpy(cmdCopy, cmd);
                 // parse the copy string
-                if(parseCommand(&storeCmd, cmdCopy)== -1){
+                if (parseCommand(&storeCmd, cmdCopy) == -1)
+                {
                         freeLinked(&storeCmd);
                         continue;
                 }
@@ -473,7 +480,6 @@ int main(void)
                         {
                                 printf("%s\n", buff);
                                 fprintf(stderr, "+ completed '%s' [%d]\n", cmd, 0);
-
                         }
                         else
                         {
@@ -487,7 +493,6 @@ int main(void)
                         if (result == 0)
                         {
                                 fprintf(stderr, "+ completed '%s' [%d]\n", cmd, 0);
-
                         }
                         else
                         {
@@ -503,15 +508,14 @@ int main(void)
                 jobs->next = initJobs();
                 jobs->next->prev = jobs;
                 jobs = jobs->next;
-                if (jobs->prev->wait) 
+                if (jobs->prev->wait)
                 {
                         continue;
                 }
-                else 
+                else
                 {
                         freeJob(jobs->prev);
                 }
-
         }
 
         return EXIT_SUCCESS;
