@@ -59,6 +59,7 @@ void freeJob(struct Jobs *job) {
         {
                 job->next->prev = NULL;
         }
+        free(job->cmd);
         free(job);
 }
 
@@ -451,7 +452,7 @@ int pipeExecute(struct inputCmd *head, char *cmd, struct Jobs *jobs)
                         {
                                 if (dup2(pipeFds[cmdCounter - 2], STDIN_FILENO) < 0)
                                 {
-                                        perror(" dup2"); /// cmdCounter-2 0 cmdCounter+1 1
+                                        perror("dup2"); /// cmdCounter-2 0 cmdCounter+1 1
                                         exit(EXIT_FAILURE);
                                 }
                         }
@@ -493,16 +494,6 @@ int pipeExecute(struct inputCmd *head, char *cmd, struct Jobs *jobs)
                 for (int i = 0; i < jobs->numProcess; i++)
                 {
                         waitpid(jobs->pids[i], &status, 0);
-                        /*
-                        if (i != 0 && status != 0)
-                        {
-                                statusArr[statusArrLen++] = WEXITSTATUS(status + 1);
-                        }
-                        else
-                        {
-                                statusArr[statusArrLen++] = WEXITSTATUS(status);
-                        }
-                        */
                         jobs->exitStats[i] = WEXITSTATUS(status);
                 }
                 printStatus(cmd, jobs->exitStats, jobs->numProcess);
@@ -646,7 +637,7 @@ int main(void)
                         freeJob(jobs->prev);
                         bgJobHandling(jobs);
                 }
-                
+
         }
 
         return EXIT_SUCCESS;
