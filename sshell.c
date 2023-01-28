@@ -67,207 +67,6 @@ void freeJob(struct Jobs *job) {
         free(job);
 }
 
-int parsePipe(char **ifMeta, struct inputCmd **currentCmd, char **token, char *metaChar, int *args_i)
-{
-        if (strcmp(*token, metaChar) != 0 && **ifMeta != **token)
-        {
-                // find position of metachar then only add the command to args list without redirect
-                int isMetaChar = strcspn(*token, metaChar);
-                (*currentCmd)->args[(*args_i)] = strndup(*token, isMetaChar);
-                //printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
-                (*args_i)++;
-
-                // since end of args array, must add null
-                (*currentCmd)->args[(*args_i)] = NULL;
-                // create and allocate space for new command node and assign as current node
-                (*currentCmd)->next = (struct inputCmd *)malloc(sizeof(struct inputCmd));
-                (*currentCmd) = (*currentCmd)->next;
-
-                // initialize new cmd node
-                (*args_i) = 0;
-                (*currentCmd)->cmdOutput = NULL;
-                (*currentCmd)->prevCmdInput = NULL;
-                (*currentCmd)->next = NULL;
-                (*currentCmd)->appendYN = 0;
-
-                //printf("Token: %s\n", *token);
-                if (*((*ifMeta) + 1) == '\0')
-                {
-                        *token = strtok(NULL, " ");
-                        (*currentCmd)->args[*args_i] = strdup(*token);
-                        //printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
-                        (*args_i)++;
-                }
-                else
-                {
-                        (*currentCmd)->args[*args_i] = strdup(*ifMeta + 1);
-                        //printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
-                        (*args_i)++;
-                }
-                // Check if we are in instance Cmd < input or Cmd <input
-        }
-        else
-        {
-                // since end of args array, must add null
-                (*currentCmd)->args[(*args_i)] = NULL;
-                // create and allocate space for new command node and assign as current node
-                (*currentCmd)->next = (struct inputCmd *)malloc(sizeof(struct inputCmd));
-                (*currentCmd) = (*currentCmd)->next;
-
-                // initialize new cmd node
-                (*args_i) = 0;
-                (*currentCmd)->cmdOutput = NULL;
-                (*currentCmd)->prevCmdInput = NULL;
-                (*currentCmd)->next = NULL;
-                (*currentCmd)->appendYN = 0;
-
-                //printf("Token: %s\n", *token);
-                if (*((*ifMeta) + 1) == '\0')
-                {
-                        *token = strtok(NULL, " ");
-                        (*currentCmd)->args[*args_i] = strdup(*token);
-                        //printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
-                        (*args_i)++;
-                }
-                else
-                {
-                        (*currentCmd)->args[*args_i] = strdup(*ifMeta + 1);
-                        //printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
-                        (*args_i)++;
-                }
-        }
-        return 0;
-}
-
-int parseRedir(char **ifMeta, struct inputCmd **storeCmd, char **token, char *metaChar, int *args_i)
-{
-
-        // Check if we are in instance Cmd< input or Cmd<input
-        if (strcmp(*token, metaChar) != 0 && **ifMeta != **token)
-        {
-                // find position of metachar then only add the command to args list without redirect
-                int isMetaChar = strcspn(*token, metaChar);
-                (*storeCmd)->args[(*args_i)] = strndup(*token, isMetaChar);
-                //printf("Arg [%d]: %s\n", (*args_i), (*storeCmd)->args[(*args_i)]);
-                (*args_i)++;
-
-                if (*(*(ifMeta) + 1) == '\0')
-                {
-                        *token = strtok(NULL, " ");
-                        if (*token == NULL)
-                        {
-                                fprintf(stderr, "Error: no output file");
-                                return -1;
-                        }
-                        if (*metaChar == '>')
-                                (*storeCmd)->cmdOutput = strdup(*token);
-                }
-                else if (*((*ifMeta) + 1) == **ifMeta)
-                {
-                        (*storeCmd)->appendYN = 1;
-                        *token = strtok(NULL, " ");
-                        if (*token == NULL)
-                        {
-                                fprintf(stderr, "Error: no output file");
-                                return -1;
-                        }
-                        if (*metaChar == '>')
-                                (*storeCmd)->cmdOutput = strdup(*token);
-                }
-                else
-                {
-
-                        if (*metaChar == '>')
-                                (*storeCmd)->cmdOutput = strdup(*ifMeta + 1);
-                }
-                // Check if we are in instance Cmd < input or Cmd <input
-        }
-        else
-        {
-                //*token = strtok(NULL, " ");
-
-                if (*(*(ifMeta) + 1) == '\0')
-                {
-                        *token = strtok(NULL, " ");
-                        //printf("here\n");
-                        if (*token == NULL)
-                        {
-                                fprintf(stderr, "Error: no output file");
-                                return -1;
-                        }
-                        if (*metaChar == '>')
-                                (*storeCmd)->cmdOutput = strdup(*token);
-                }
-                else if (*((*ifMeta) + 1) == **ifMeta)
-                {
-                        (*storeCmd)->appendYN = 1;
-                        *token = strtok(NULL, " ");
-                        if (*token == NULL)
-                        {
-                                fprintf(stderr, "Error: no output file");
-                                return -1;
-                        }
-                        if (*metaChar == '>')
-                                (*storeCmd)->cmdOutput = strdup(*token);
-                }
-                else
-                {
-                        if (*metaChar == '>')
-                                (*storeCmd)->cmdOutput = strdup(*ifMeta + 1);
-                }
-        }
-        return 0;
-}
-
-int parseBG(struct inputCmd **storeCmd, char **token, char *metaChar, int *args_i)
-{
-        char *bgToken = strtok((*token), metaChar);
-        printf("Token: %s\n", bgToken);
-        (*storeCmd)->args[*args_i] = strdup((bgToken));
-        //printf("Arg [%d]: %s\n", (*args_i), (*storeCmd)->args[(*args_i)]);
-        (*args_i)++;
-        return 0;
-}
-
-int mislocated(const struct inputCmd *head, const struct inputCmd *tail)
-{
-
-        // Error: cmd > output | cmd, cmd| cmd < input
-        if (head->next != NULL && head->cmdOutput != NULL)
-        {
-                fprintf(stderr, "Error: mislocated output redirection\n");
-                return -1;
-        }
-
-        if (tail->prevCmdInput != NULL && tail != head)
-        {
-                fprintf(stderr, "Error: mislocated input redirection\n");
-                return -1;
-        }
-
-        // Error cmd | cmd > cmd | cmd , cmd | cmd < cmd | cmd
-        head = head->next;
-
-        while (head != NULL)
-        {
-                if (head == tail)
-                        break;
-
-                if (head->cmdOutput != NULL)
-                {
-                        fprintf(stderr, "Error: mislocated output redirection\n");
-                        return -1;
-                }
-                else if (head->prevCmdInput != NULL)
-                {
-                        fprintf(stderr, "Error: mislocated input redirection\n");
-                        return -1;
-                }
-                head = head->next;
-        }
-        return 0;
-}
-
 int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
 {
         struct inputCmd *currentCmd = headCmd;
@@ -278,6 +77,7 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
                 return -1;
         }
 
+        // First stage: divide the command up through pipeline operator
         char *pipeCommands[MAX_ARGS];
         int pipe_i = 0;
         char *singleCommand = strtok(cmdCopy, "|");
@@ -286,12 +86,15 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
                 pipeCommands[pipe_i++] = singleCommand;
                 singleCommand = strtok(NULL, "|");
         }
+
         for (int i = 0; i < pipe_i; i++) {
                 char *process = pipeCommands[i];
                 char *redirect = strpbrk(process, ">");
                 char *background = strpbrk(process, "&");
+                
                 if (i < pipe_i - 1)
                 {
+                        // Detect mislocated output and redirection sign
                         if (redirect)
                         {
                                 
@@ -303,7 +106,8 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
                                 fprintf(stderr, "Error: mislocated background sign\n");
                                 return -1;
                         }
-                
+
+                        // Second stage: Divide each single process command into individual arguments
                         char *argument = strtok(process, " ");
                         int args_i = 0;
                         while (argument)
@@ -319,36 +123,47 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
                         currentCmd->next = NULL;
                         currentCmd->appendYN = 0;
                 }
+                // The last command in the pipeline would contain background sign or redirect sign
                 else 
                 {
                         if (background) {
+                                // Valid background sign need to be in the end of the argument
                                 if (process[strlen(process) - 1] != '&')
                                 {
                                         fprintf(stderr, "Error: mislocated background sign\n");
                                         return -1;
                                 }
+                                // If background sign valid, trim out the background sign
                                 else {
                                         process[strlen(process) - 1] = '\0';
                                 }
                         }
                         if (redirect) {
-                                // Append
+                                // Detect append sign
                                 if (*(redirect+1) == '>') 
                                 {
                                         currentCmd->appendYN = 1;
                                 }
+
+                                // Seperate command with the redirect file
                                 char *command = strtok(process, ">");
                                 char *file = strtok(NULL, ">");
+
+                                // if no entry after > sign
                                 if (file == NULL) {
-                                        fprintf(stderr, "Error: no output file");
+                                        fprintf(stderr, "Error: no output file\n");
                                         return -1;
                                 }
+
                                 file = strtok(file, " ");
+
+                                // if entry after > is whitespace
                                 if (file == NULL) {
-                                        fprintf(stderr, "Error: no output file");
+                                        fprintf(stderr, "Error: no output file\n");
                                         return -1;
                                 }
-                                //printf("Success File\n");
+                                
+                                // Divide the command into individual arguments
                                 char *argument = strtok(command, " ");
                                 int args_i = 0;
                                 while (argument)
@@ -358,7 +173,7 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
                                 }
                                 currentCmd->args[args_i] = NULL;
                                 currentCmd->cmdOutput = strdup(file);
-                                //printf("pre file open\n");
+
                                 // Test if file can be opened
                                 int fd = open(currentCmd->cmdOutput, O_WRONLY | O_CREAT, 0644);
 
@@ -368,9 +183,9 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
                                         return -1;
                                 }
                                 close(fd);
-                                //printf("so it's good\n");
                                 
                         }
+                        // if there's no redirect, simply treat process as line of arguments
                         else 
                         {
                                 char *argument = strtok(process, " ");
