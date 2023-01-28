@@ -30,25 +30,27 @@ struct Jobs
         struct Jobs *prev;
 };
 
-struct Jobs *initJobs()
+struct Jobs* initJobs()
 {
-        struct Jobs *jobs = (struct Jobs *)malloc(sizeof(struct Jobs));
+        struct Jobs *jobs = (struct Jobs*)malloc(sizeof(struct Jobs));
         jobs->next = NULL;
         jobs->prev = NULL;
         jobs->cmd = NULL;
         jobs->numProcess = 0;
         jobs->wait = 0;
-        for (int i = 0; i < MAX_ARGS; i++)
-        {
+        for (int i = 0; i < MAX_ARGS; i++) {
                 // Test if the child has exited or not
                 jobs->exitStats[i] = -5;
         }
         return jobs;
 }
 
-void freeJob(struct Jobs *job)
-{
-        if (job->prev && job->next)
+/**
+ * Free any single job node in a linked list of jobs
+ * If the job is in the middle of the linked list, link the previous and next node together
+*/
+void freeJob(struct Jobs *job) {
+        if (job->prev && job->next) 
         {
                 job->prev->next = job->next;
                 job->next->prev = job->prev;
@@ -57,7 +59,7 @@ void freeJob(struct Jobs *job)
         {
                 job->prev->next = NULL;
         }
-        else if (job->next)
+        else if (job->next) 
         {
                 job->next->prev = NULL;
         }
@@ -67,12 +69,12 @@ void freeJob(struct Jobs *job)
 
 int parsePipe(char **ifMeta, struct inputCmd **currentCmd, char **token, char *metaChar, int *args_i)
 {
-        // check if we are in instances cmd|cmd ot cmd| cmd
         if (strcmp(*token, metaChar) != 0 && **ifMeta != **token)
         {
                 // find position of metachar then only add the command to args list without redirect
                 int isMetaChar = strcspn(*token, metaChar);
                 (*currentCmd)->args[(*args_i)] = strndup(*token, isMetaChar);
+                //printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
                 (*args_i)++;
 
                 // since end of args array, must add null
@@ -88,18 +90,21 @@ int parsePipe(char **ifMeta, struct inputCmd **currentCmd, char **token, char *m
                 (*currentCmd)->next = NULL;
                 (*currentCmd)->appendYN = 0;
 
-                // if space char after meta, strtok and copy, else, copy everything after meta
+                //printf("Token: %s\n", *token);
                 if (*((*ifMeta) + 1) == '\0')
                 {
                         *token = strtok(NULL, " ");
                         (*currentCmd)->args[*args_i] = strdup(*token);
+                        //printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
                         (*args_i)++;
                 }
                 else
                 {
                         (*currentCmd)->args[*args_i] = strdup(*ifMeta + 1);
+                        //printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
                         (*args_i)++;
                 }
+                // Check if we are in instance Cmd < input or Cmd <input
         }
         else
         {
@@ -116,16 +121,18 @@ int parsePipe(char **ifMeta, struct inputCmd **currentCmd, char **token, char *m
                 (*currentCmd)->next = NULL;
                 (*currentCmd)->appendYN = 0;
 
-                // if space char after meta, strtok and copy, else, copy everything after meta
+                //printf("Token: %s\n", *token);
                 if (*((*ifMeta) + 1) == '\0')
                 {
                         *token = strtok(NULL, " ");
                         (*currentCmd)->args[*args_i] = strdup(*token);
+                        //printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
                         (*args_i)++;
                 }
                 else
                 {
                         (*currentCmd)->args[*args_i] = strdup(*ifMeta + 1);
+                        //printf("Arg [%d]: %s\n", (*args_i), (*currentCmd)->args[(*args_i)]);
                         (*args_i)++;
                 }
         }
@@ -141,9 +148,9 @@ int parseRedir(char **ifMeta, struct inputCmd **storeCmd, char **token, char *me
                 // find position of metachar then only add the command to args list without redirect
                 int isMetaChar = strcspn(*token, metaChar);
                 (*storeCmd)->args[(*args_i)] = strndup(*token, isMetaChar);
+                //printf("Arg [%d]: %s\n", (*args_i), (*storeCmd)->args[(*args_i)]);
                 (*args_i)++;
 
-                // if there is a space after metachar, strtok and copy string to output
                 if (*(*(ifMeta) + 1) == '\0')
                 {
                         *token = strtok(NULL, " ");
@@ -155,7 +162,6 @@ int parseRedir(char **ifMeta, struct inputCmd **storeCmd, char **token, char *me
                         if (*metaChar == '>')
                                 (*storeCmd)->cmdOutput = strdup(*token);
                 }
-                // if we are dealing with append, separate file name from meta chars and copy to output
                 else if (*((*ifMeta) + 1) == **ifMeta)
                 {
                         (*storeCmd)->appendYN = 1;
@@ -168,21 +174,22 @@ int parseRedir(char **ifMeta, struct inputCmd **storeCmd, char **token, char *me
                         if (*metaChar == '>')
                                 (*storeCmd)->cmdOutput = strdup(*token);
                 }
-                // if metachar is connected to char, copy all chars after metachar to output
                 else
                 {
 
                         if (*metaChar == '>')
                                 (*storeCmd)->cmdOutput = strdup(*ifMeta + 1);
                 }
+                // Check if we are in instance Cmd < input or Cmd <input
         }
-        // instances cmd <input and Cmd < input
         else
         {
-                // if there is a space after metachar, strtok and copy string to args
+                //*token = strtok(NULL, " ");
+
                 if (*(*(ifMeta) + 1) == '\0')
                 {
                         *token = strtok(NULL, " ");
+                        //printf("here\n");
                         if (*token == NULL)
                         {
                                 fprintf(stderr, "Error: no output file");
@@ -191,7 +198,6 @@ int parseRedir(char **ifMeta, struct inputCmd **storeCmd, char **token, char *me
                         if (*metaChar == '>')
                                 (*storeCmd)->cmdOutput = strdup(*token);
                 }
-                // if we are dealing with append, separate file name from meta chars and copy to output
                 else if (*((*ifMeta) + 1) == **ifMeta)
                 {
                         (*storeCmd)->appendYN = 1;
@@ -204,7 +210,6 @@ int parseRedir(char **ifMeta, struct inputCmd **storeCmd, char **token, char *me
                         if (*metaChar == '>')
                                 (*storeCmd)->cmdOutput = strdup(*token);
                 }
-                // if metachar is connected to char, copy all chars after metachar
                 else
                 {
                         if (*metaChar == '>')
@@ -216,34 +221,45 @@ int parseRedir(char **ifMeta, struct inputCmd **storeCmd, char **token, char *me
 
 int parseBG(struct inputCmd **storeCmd, char **token, char *metaChar, int *args_i)
 {
-        // parse & from arg and add arg to list of args
         char *bgToken = strtok((*token), metaChar);
         (*storeCmd)->args[*args_i] = strdup((bgToken));
+        //printf("Arg [%d]: %s\n", (*args_i), (*storeCmd)->args[(*args_i)]);
         (*args_i)++;
         return 0;
 }
 
-int mislocatedRedir(const struct inputCmd *head, const struct inputCmd *current)
+int mislocated(const struct inputCmd *head, const struct inputCmd *tail)
 {
 
-        // Error: cmd > output | cmd
+        // Error: cmd > output | cmd, cmd| cmd < input
         if (head->next != NULL && head->cmdOutput != NULL)
         {
                 fprintf(stderr, "Error: mislocated output redirection\n");
                 return -1;
         }
 
-        // Error: if anything besides final node/ pipe process has output redir
+        if (tail->prevCmdInput != NULL && tail != head)
+        {
+                fprintf(stderr, "Error: mislocated input redirection\n");
+                return -1;
+        }
+
+        // Error cmd | cmd > cmd | cmd , cmd | cmd < cmd | cmd
         head = head->next;
 
         while (head != NULL)
         {
-                if (head == current)
+                if (head == tail)
                         break;
 
                 if (head->cmdOutput != NULL)
                 {
                         fprintf(stderr, "Error: mislocated output redirection\n");
+                        return -1;
+                }
+                else if (head->prevCmdInput != NULL)
+                {
+                        fprintf(stderr, "Error: mislocated input redirection\n");
                         return -1;
                 }
                 head = head->next;
@@ -256,17 +272,14 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
         struct inputCmd *currentCmd = headCmd;
         int args_i = 0;
         int cmdlen = strlen(cmdCopy) - 1;
-
-        // if & is not the last token of the job, fail case
         if (strpbrk(cmdCopy, "&") && cmdCopy[cmdlen] != '&')
         {
                 fprintf(stderr, "Error: mislocated background sign\n");
                 return -1;
         }
-
-        // parse job at every space char
+        //printf("Whole Command: %s\n", cmdCopy);
         char *token = strtok(cmdCopy, " ");
-
+        //printf("Token: %s\n", token);
         while (token != NULL)
         {
                 if (args_i > MAX_ARGS - 1)
@@ -279,8 +292,7 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
                         fprintf(stderr, "Error: missing command\n");
                         return -1;
                 }
-
-                // sets pointer if Redirect or pipeline ot bg job
+                // sets pointer if Redirect or pipeline
                 char *ifMeta = strpbrk(token, ">|&");
                 if (ifMeta != NULL)
                 {
@@ -307,21 +319,19 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
                         }
                 }
                 else
-                {
-                        // no metachars present
+                { // no metachars present
                         currentCmd->args[args_i] = token;
+                        //printf("Arg [%d]: %s\n", args_i, currentCmd->args[args_i]);
                         args_i++;
                 }
-
                 token = strtok(NULL, " ");
+                //printf("Token: %s\n", token);
         }
         currentCmd->args[args_i] = NULL;
 
-        // check if redirect commands are not mislocated
-        if (mislocatedRedir(headCmd, currentCmd) == -1)
+        if (mislocated(headCmd, currentCmd) == -1)
                 return -1;
-
-        // check if create/check write file works
+        // check if read works and create/check write file
         int fd = 0;
 
         fd = open(currentCmd->cmdOutput, O_WRONLY | O_CREAT, 0644);
@@ -334,7 +344,6 @@ int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
         return 0;
 }
 
-// if an output value exists at a process node, respond and redirect to file
 static void redir(struct inputCmd *storeCmd)
 {
 
@@ -355,13 +364,12 @@ static void redir(struct inputCmd *storeCmd)
         }
 }
 
-// strndup and strdup need to be freed
-// we need to free every output that is not null
-// this is to prevent mem leak
 void freeLinked(struct inputCmd *head)
 {
-
-        if (head->cmdOutput != NULL)
+        // strndup and strdup both allocate memory and need to be freed
+        if (head->prevCmdInput != NULL)
+                free(head->prevCmdInput);
+        else if (head->cmdOutput != NULL)
                 free(head->cmdOutput);
 
         struct inputCmd *next = head->next;
@@ -371,6 +379,8 @@ void freeLinked(struct inputCmd *head)
                 struct inputCmd *tmp = next;
                 next = next->next;
 
+                if (tmp->prevCmdInput != NULL)
+                        free(tmp->prevCmdInput);
                 if (tmp->cmdOutput != NULL)
                         free(tmp->cmdOutput);
 
@@ -378,6 +388,9 @@ void freeLinked(struct inputCmd *head)
         }
 }
 
+// reference:
+// https://stackoverflow.com/questions/8389033/implementation-of-multiple-pipes-in-c
+// We refence the beginning stages to create pultiple pipes given an unknown amount of cmds
 int pipeCount(struct inputCmd *headCmd)
 {
         struct inputCmd *currentCmd = headCmd;
@@ -390,7 +403,7 @@ int pipeCount(struct inputCmd *headCmd)
         return count - 1;
 }
 
-void printStatus(char *cmd, int statusArr[], int statusArrLen)
+void printStatus(char *cmd, int statusArr[], int statusArrLen) 
 {
         fprintf(stderr, "+ completed '%s' ", cmd);
 
@@ -401,24 +414,44 @@ void printStatus(char *cmd, int statusArr[], int statusArrLen)
         fprintf(stderr, "\n");
 }
 
-// reference:
-// https://stackoverflow.com/questions/8389033/implementation-of-multiple-pipes-in-c
-// We refence the beginning stages to create multiple pipes given an unknown amount of cmds
+void bgJobHandling(struct Jobs *jobs)
+{
+        
+        struct Jobs *jobsTail = jobs->prev;
+        while (jobsTail)
+        {
+                int status;
+                int allComplete = 1;
+                for (int i = 0; i < jobsTail->numProcess; i++)
+                {
+                        int isComplete = waitpid(jobsTail->pids[i], &status, WNOHANG);
+                        if (isComplete)
+                        {
+                                jobsTail->exitStats[i] = WEXITSTATUS(status);
+                        }
+                        if (jobsTail->exitStats[i] == -5) {
+                                allComplete = 0;
+                        }
+                }
+                struct Jobs* tempPrevJobHolder = jobsTail->prev;
+                if (allComplete) {
+                        printStatus(jobsTail->cmd, jobsTail->exitStats, jobsTail->numProcess);
+                        freeJob(jobsTail);
+                }
+                jobsTail = tempPrevJobHolder;
+        }        
+}
+
 int pipeExecute(struct inputCmd *head, char *cmd, struct Jobs *jobs)
 {
-        // define variables for piping
         struct inputCmd *currentCmd = head;
         int numPipes = pipeCount(head);
+        int status = EXIT_SUCCESS;
         int pipeFds[numPipes * 2];
         pid_t pid;
-        int status = EXIT_SUCCESS;
-
-        // store process into current job
-        jobs->cmd = (char *)malloc(sizeof(char) * strlen(cmd));
+        jobs->cmd = (char*)malloc(sizeof(char) * strlen(cmd));
         strcpy(jobs->cmd, cmd);
 
-        // create all pipes beforehand
-        // pipeFds + i * 2 is used as every pipe requires 2 ints for stdin and stdout
         for (int i = 0; i < numPipes; i++)
         {
                 if (pipe(pipeFds + i * 2) < 0)
@@ -428,16 +461,15 @@ int pipeExecute(struct inputCmd *head, char *cmd, struct Jobs *jobs)
                 }
         }
 
-        // create var to keep track of positioning
         int cmdCounter = 0;
         while (currentCmd != NULL)
         {
                 pid = fork();
+                // Child process
                 if (pid == 0)
                 {
-                        // redir only works when last command
                         redir(currentCmd);
-                        // if not last command, point stdout to pipe write
+                        // if not last command
                         if (currentCmd->next)
                         {
                                 if (dup2(pipeFds[cmdCounter + 1], STDOUT_FILENO) < 0)
@@ -447,12 +479,12 @@ int pipeExecute(struct inputCmd *head, char *cmd, struct Jobs *jobs)
                                 }
                         }
 
-                        // if not first command, point stdin to pipe read
+                        // if not first command&& cmdCounter!= 2*numPipes
                         if (cmdCounter != 0)
                         {
                                 if (dup2(pipeFds[cmdCounter - 2], STDIN_FILENO) < 0)
                                 {
-                                        perror(" dup2");
+                                        perror("dup2"); /// cmdCounter-2 0 cmdCounter+1 1
                                         exit(EXIT_FAILURE);
                                 }
                         }
@@ -462,7 +494,6 @@ int pipeExecute(struct inputCmd *head, char *cmd, struct Jobs *jobs)
                                 close(pipeFds[i]);
                         }
 
-                        // execute process and print to stderr if fail
                         if (execvp(currentCmd->args[0], currentCmd->args) < 0)
                         {
                                 fprintf(stderr, "Error: command not found\n");
@@ -478,7 +509,7 @@ int pipeExecute(struct inputCmd *head, char *cmd, struct Jobs *jobs)
                 // Parent process
                 // Keep track of pids of the child processes in the order of their pipeline
                 jobs->pids[jobs->numProcess++] = pid;
-                
+
                 currentCmd = currentCmd->next;
                 cmdCounter += 2;
         }
@@ -489,49 +520,19 @@ int pipeExecute(struct inputCmd *head, char *cmd, struct Jobs *jobs)
         if (strpbrk(cmd, "&") != NULL)
         {
                 jobs->wait = 1;
+                bgJobHandling(jobs);
         }
         else
         {
-                // on normal foreground job:
-                // wait for completion of entire pipe
-                // Then check if any process passed or failed (if status is not 0) and store to array of exit status
                 for (int i = 0; i < jobs->numProcess; i++)
                 {
                         waitpid(jobs->pids[i], &status, 0);
                         jobs->exitStats[i] = WEXITSTATUS(status);
                 }
+                bgJobHandling(jobs);
                 printStatus(cmd, jobs->exitStats, jobs->numProcess);
         }
         return 0;
-}
-
-void bgJobHandling(struct Jobs *jobs)
-{
-        struct Jobs *jobsTail = jobs->prev;
-        while (jobsTail)
-        {
-                int status;
-                int allComplete = 1;
-                for (int i = 0; i < jobsTail->numProcess; i++)
-                {
-                        int isComplete = waitpid(jobsTail->pids[i], &status, WNOHANG);
-                        if (isComplete)
-                        {
-                                jobsTail->exitStats[i] = WEXITSTATUS(status);
-                        }
-                        if (jobsTail->exitStats[i] == -5)
-                        {
-                                allComplete = 0;
-                        }
-                }
-                struct Jobs *tempPrevJobHolder = jobsTail->prev;
-                if (allComplete)
-                {
-                        printStatus(jobsTail->cmd, jobsTail->exitStats, jobsTail->numProcess);
-                        freeJob(jobsTail);
-                }
-                jobsTail = tempPrevJobHolder;
-        }
 }
 
 int main(void)
@@ -543,7 +544,7 @@ int main(void)
 
         while (1)
         {
-                // consider this our head node and define all elements of head
+                // consider this our head node
                 struct inputCmd storeCmd;
                 storeCmd.appendYN = 0;
                 storeCmd.prevCmdInput = NULL;
@@ -551,6 +552,7 @@ int main(void)
                 storeCmd.next = NULL;
 
                 char *nl;
+                // int retval;
 
                 /* Print prompt */
                 printf("sshell@ucd$ ");
@@ -571,18 +573,15 @@ int main(void)
                 if (nl)
                         *nl = '\0';
 
-                bgJobHandling(jobs);
-
                 /* Builtin command */
-                if (strlen(cmd) == 0)
-                {
+                if (strlen(cmd) == 0) {
                         bgJobHandling(jobs);
                         continue;
                 }
                 if (!strcmp(cmd, "exit"))
                 {
-                        if (jobs->prev)
-                        {
+                        bgJobHandling(jobs);
+                        if (jobs->prev) {
                                 fprintf(stderr, "Error: active jobs still running\n");
                                 continue;
                         }
@@ -595,45 +594,45 @@ int main(void)
                 char cmdCopy[CMDLINE_MAX];
                 strcpy(cmdCopy, cmd);
                 // parse the copy string
-                // failure to parse will take us directly to the next job
-                if (parseCommand(&storeCmd, cmdCopy) == -1)
-                {
+                if(parseCommand(&storeCmd, cmdCopy)== -1){
                         freeLinked(&storeCmd);
                         continue;
                 }
 
                 /* Regular command */
-                // check if arg is "pwd", if so get the value and store in a string to print
-                // failure to get the directory results in error
+
+                /*retval = system(cmd);
+                fprintf(stdout, "Return status value for '%s': %d\n",
+                        cmd, retval);*/
                 if (strcmp(storeCmd.args[0], "pwd") == 0)
                 {
+                        bgJobHandling(jobs);
                         char buff[CMDLINE_MAX];
                         if (getcwd(buff, CMDLINE_MAX) == buff)
                         {
                                 printf("%s\n", buff);
                                 fprintf(stderr, "+ completed '%s' [%d]\n", cmd, 0);
+
                         }
                         else
                         {
                                 perror("getcwd");
                         }
                 }
-                // check if arg is cd
-                // run change directory function with the file as parameter
-                // failure results in error message
                 else if (strcmp(storeCmd.args[0], "cd") == 0)
                 {
+                        bgJobHandling(jobs);
                         int result = chdir(storeCmd.args[1]);
                         if (result == 0)
                         {
                                 fprintf(stderr, "+ completed '%s' [%d]\n", cmd, 0);
+
                         }
                         else
                         {
                                 fprintf(stderr, "Error: cannot cd into directory\n");
                         }
                 }
-                // all normal commands must be executed and freed to prevent any segfaults
                 else
                 {
                         pipeExecute(&storeCmd, cmd, jobs);
@@ -643,14 +642,15 @@ int main(void)
                 jobs->next = initJobs();
                 jobs->next->prev = jobs;
                 jobs = jobs->next;
-                if (jobs->prev->wait)
+                if (jobs->prev->wait) 
                 {
                         continue;
                 }
-                else
+                else 
                 {
                         freeJob(jobs->prev);
                 }
+
         }
 
         return EXIT_SUCCESS;
