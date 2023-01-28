@@ -19,6 +19,49 @@ struct inputCmd
         struct inputCmd *next;
 };
 
+struct Jobs
+{
+        int pids[MAX_ARGS];
+        int exitStats[MAX_ARGS];
+        int numProcess;
+        char *cmd;
+        int wait;
+        struct Jobs *next;
+        struct Jobs *prev;
+};
+
+struct Jobs* initJobs()
+{
+        struct Jobs *jobs = (struct Jobs*)malloc(sizeof(struct Jobs));
+        jobs->next = NULL;
+        jobs->prev = NULL;
+        jobs->cmd = NULL;
+        jobs->numProcess = 0;
+        jobs->wait = 0;
+        for (int i = 0; i < MAX_ARGS; i++) {
+                // Test if the child has exited or not
+                jobs->exitStats[i] = -5;
+        }
+        return jobs;
+}
+
+void freeJob(struct Jobs *job) {
+        if (job->prev && job->next) 
+        {
+                job->prev->next = job->next;
+                job->next->prev = job->prev;
+        }
+        else if (job->prev)
+        {
+                job->prev->next = NULL;
+        }
+        else if (job->next) 
+        {
+                job->next->prev = NULL;
+        }
+        free(job);
+}
+
 int parsePipe(char **ifMeta, struct inputCmd **currentCmd, char **token, char *metaChar, int *args_i)
 {
         if (strcmp(*token, metaChar) != 0 && **ifMeta != **token)
@@ -355,15 +398,26 @@ int pipeCount(struct inputCmd *headCmd)
         return count - 1;
 }
 
-int pipeExecute(struct inputCmd *head, char *cmd)
+void printStatus(char *cmd, int statusArr[], int statusArrLen) 
+{
+        fprintf(stderr, "+ completed '%s' ", cmd);
+
+        for (int j = 0; j < statusArrLen; j++)
+        {
+                fprintf(stderr, "[%d]", statusArr[j]);
+        }
+        fprintf(stderr, "\n");
+}
+
+int pipeExecute(struct inputCmd *head, char *cmd, struct Jobs *jobs)
 {
         struct inputCmd *currentCmd = head;
         int numPipes = pipeCount(head);
-        int statusArrLen = 0;
-        int statusArr[MAX_ARGS * numPipes];
-        int status = 0;
+        int status = EXIT_SUCCESS;
         int pipeFds[numPipes * 2];
         pid_t pid;
+        jobs->cmd = (char*)malloc(sizeof(char) * strlen(cmd));
+        strcpy(jobs->cmd, cmd);
 
         for (int i = 0; i < numPipes; i++)
         {
@@ -378,6 +432,7 @@ int pipeExecute(struct inputCmd *head, char *cmd)
         while (currentCmd != NULL)
         {
                 pid = fork();
+                // Child process
                 if (pid == 0)
                 {
                         redir(currentCmd);
@@ -418,6 +473,10 @@ int pipeExecute(struct inputCmd *head, char *cmd)
                         exit(EXIT_FAILURE);
                 }
 
+                // Parent process
+                // Keep track of pids of the child processes in the order of their pipeline
+                jobs->pids[jobs->numProcess++] = pid;
+
                 currentCmd = currentCmd->next;
                 cmdCounter += 2;
         }
@@ -427,21 +486,14 @@ int pipeExecute(struct inputCmd *head, char *cmd)
         }
         if (strpbrk(cmd, "&") != NULL)
         {
-                waitpid(pid, &status, 0);
-                fprintf(stderr, "+ completed '%s' ", cmd);
-
-                for (int j = 0; j < statusArrLen; j++)
-                {
-                        fprintf(stderr, "[%d]", statusArr[j]);
-                }
-                fprintf(stderr, "\n");
+                jobs->wait = 1;
         }
         else
         {
-                for (int i = 0; i < numPipes + 1; i++)
+                for (int i = 0; i < jobs->numProcess; i++)
                 {
-                        wait(&status);
-
+                        waitpid(jobs->pids[i], &status, 0);
+                        /*
                         if (i != 0 && status != 0)
                         {
                                 statusArr[statusArrLen++] = WEXITSTATUS(status + 1);
@@ -450,16 +502,39 @@ int pipeExecute(struct inputCmd *head, char *cmd)
                         {
                                 statusArr[statusArrLen++] = WEXITSTATUS(status);
                         }
+                        */
+                        jobs->exitStats[i] = WEXITSTATUS(status);
                 }
-                fprintf(stderr, "+ completed '%s' ", cmd);
-
-                for (int j = 0; j < statusArrLen; j++)
-                {
-                        fprintf(stderr, "[%d]", statusArr[j]);
-                }
-                fprintf(stderr, "\n");
+                printStatus(cmd, jobs->exitStats, jobs->numProcess);
         }
         return 0;
+}
+
+void bgJobHandling(struct Jobs *jobs)
+{
+        struct Jobs *jobsTail = jobs->prev;
+        while (jobsTail)
+        {
+                int status;
+                int allComplete = 1;
+                for (int i = 0; i < jobsTail->numProcess; i++)
+                {
+                        int isComplete = waitpid(jobsTail->pids[i], &status, WNOHANG);
+                        if (isComplete)
+                        {
+                                jobsTail->exitStats[i] = WEXITSTATUS(status);
+                        }
+                        if (jobsTail->exitStats[i] == -5) {
+                                allComplete = 0;
+                        }
+                }
+                struct Jobs* tempPrevJobHolder = jobsTail->prev;
+                if (allComplete) {
+                        printStatus(jobsTail->cmd, jobsTail->exitStats, jobsTail->numProcess);
+                        freeJob(jobsTail);
+                }
+                jobsTail = tempPrevJobHolder;
+        }        
 }
 
 int main(void)
@@ -467,6 +542,7 @@ int main(void)
         // implement cmd as struct for easier data manipulation
         char cmd[CMDLINE_MAX];
         putenv("/bin");
+        struct Jobs *jobs = initJobs();
 
         while (1)
         {
@@ -500,6 +576,10 @@ int main(void)
                         *nl = '\0';
 
                 /* Builtin command */
+                if (strlen(cmd) == 0) {
+                        bgJobHandling(jobs);
+                        continue;
+                }
                 if (!strcmp(cmd, "exit"))
                 {
                         fprintf(stderr, "Bye...\n");
@@ -528,7 +608,7 @@ int main(void)
                         {
                                 printf("%s\n", buff);
                                 fprintf(stderr, "+ completed '%s' [%d]\n", cmd, 0);
-;
+
                         }
                         else
                         {
@@ -541,7 +621,7 @@ int main(void)
                         if (result == 0)
                         {
                                 fprintf(stderr, "+ completed '%s' [%d]\n", cmd, 0);
-;
+
                         }
                         else
                         {
@@ -550,9 +630,23 @@ int main(void)
                 }
                 else
                 {
-                        pipeExecute(&storeCmd, cmd);
+                        pipeExecute(&storeCmd, cmd, jobs);
                         freeLinked(&storeCmd);
                 }
+
+                jobs->next = initJobs();
+                jobs->next->prev = jobs;
+                jobs = jobs->next;
+                if (jobs->prev->wait) 
+                {
+                        continue;
+                }
+                else 
+                {
+                        freeJob(jobs->prev);
+                        bgJobHandling(jobs);
+                }
+                
         }
 
         return EXIT_SUCCESS;
