@@ -19,7 +19,6 @@ struct inputCmd
         struct inputCmd *next;
 };
 
-// implemented linked lists to keep track of a list of background jobs
 struct Jobs
 {
         int pids[MAX_ARGS];
@@ -31,7 +30,6 @@ struct Jobs
         struct Jobs *prev;
 };
 
-// Initialize Jobs node
 struct Jobs* initJobs()
 {
         struct Jobs *jobs = (struct Jobs*)malloc(sizeof(struct Jobs));
@@ -273,78 +271,123 @@ int mislocated(const struct inputCmd *head, const struct inputCmd *tail)
 int parseCommand(struct inputCmd *headCmd, char *cmdCopy)
 {
         struct inputCmd *currentCmd = headCmd;
-        int args_i = 0;
-        int cmdlen = strlen(cmdCopy) - 1;
-        if (strpbrk(cmdCopy, "&") && cmdCopy[cmdlen] != '&')
+        // detect first or last piping operator without operand
+        if (cmdCopy[0] == '|' || cmdCopy[strlen(cmdCopy) - 1] == '|')
         {
-                fprintf(stderr, "Error: mislocated background sign\n");
+                fprintf(stderr, "Error: missing command\n");
                 return -1;
         }
-        //printf("Whole Command: %s\n", cmdCopy);
-        char *token = strtok(cmdCopy, " ");
-        //printf("Token: %s\n", token);
-        while (token != NULL)
+
+        char *pipeCommands[MAX_ARGS];
+        int pipe_i = 0;
+        char *singleCommand = strtok(cmdCopy, "|");
+        while (singleCommand) 
         {
-                if (args_i > MAX_ARGS - 1)
+                pipeCommands[pipe_i++] = singleCommand;
+                singleCommand = strtok(NULL, "|");
+        }
+        for (int i = 0; i < pipe_i; i++) {
+                char *process = pipeCommands[i];
+                char *redirect = strpbrk(process, ">");
+                char *background = strpbrk(process, "&");
+                if (i < pipe_i - 1)
                 {
-                        fprintf(stderr, "Error: too many process arguments\n");
-                        return -1;
-                }
-                if (args_i == 0 && (*token == '>' || *token == '|'))
-                {
-                        fprintf(stderr, "Error: missing command\n");
-                        return -1;
-                }
-                // sets pointer if Redirect or pipeline
-                char *ifMeta = strpbrk(token, ">|&");
-                if (ifMeta != NULL)
-                {
-                        switch (*ifMeta)
+                        if (redirect)
                         {
-                        case '>':
-                                if (parseRedir(&ifMeta, &currentCmd, &token, ">", &args_i) == -1)
+                                
+                                fprintf(stderr, "Error: mislocated output redirection\n");
+                                return -1;
+                        }
+                        if (background)
+                        {
+                                fprintf(stderr, "Error: mislocated background sign\n");
+                                return -1;
+                        }
+                
+                        char *argument = strtok(process, " ");
+                        int args_i = 0;
+                        while (argument)
+                        {
+                                currentCmd->args[args_i++] = argument;
+                                argument = strtok(NULL, " ");
+                        }
+                        currentCmd->args[args_i] = NULL;
+                        currentCmd->next = (struct inputCmd *)malloc(sizeof(struct inputCmd));
+                        currentCmd = currentCmd->next;
+                        currentCmd->cmdOutput = NULL;
+                        currentCmd->prevCmdInput = NULL;
+                        currentCmd->next = NULL;
+                        currentCmd->appendYN = 0;
+                }
+                else 
+                {
+                        if (background) {
+                                if (process[strlen(process) - 1] != '&')
                                 {
+                                        fprintf(stderr, "Error: mislocated background sign\n");
                                         return -1;
                                 }
-                                break;
-                        case '|':
-                                if (parsePipe(&ifMeta, &currentCmd, &token, "|", &args_i) == -1)
+                                else {
+                                        process[strlen(process) - 1] = '\0';
+                                }
+                        }
+                        if (redirect) {
+                                // Append
+                                if (*(redirect+1) == '>') 
                                 {
+                                        currentCmd->appendYN = 1;
+                                }
+                                char *command = strtok(process, ">");
+                                char *file = strtok(NULL, ">");
+                                if (file == NULL) {
+                                        fprintf(stderr, "Error: no output file");
                                         return -1;
                                 }
-                                break;
-                        case '&':
-                                if (parseBG(&currentCmd, &token, "&", &args_i) == -1)
-                                {
+                                file = strtok(file, " ");
+                                if (file == NULL) {
+                                        fprintf(stderr, "Error: no output file");
                                         return -1;
                                 }
-                                break;
+                                //printf("Success File\n");
+                                char *argument = strtok(command, " ");
+                                int args_i = 0;
+                                while (argument)
+                                {
+                                        currentCmd->args[args_i++] = argument;
+                                        argument = strtok(NULL, " ");
+                                }
+                                currentCmd->args[args_i] = NULL;
+                                currentCmd->cmdOutput = strdup(file);
+                                //printf("pre file open\n");
+                                // Test if file can be opened
+                                int fd = open(currentCmd->cmdOutput, O_WRONLY | O_CREAT, 0644);
+
+                                if (currentCmd->cmdOutput != NULL && fd == -1)
+                                {
+                                        fprintf(stderr, "Error: cannot open output file\n");
+                                        return -1;
+                                }
+                                close(fd);
+                                //printf("so it's good\n");
+                                
+                        }
+                        else 
+                        {
+                                char *argument = strtok(process, " ");
+                                int args_i = 0;
+                                while (argument)
+                                {
+                                        currentCmd->args[args_i++] = argument;
+                                        argument = strtok(NULL, " ");
+                                }
+                                currentCmd->args[args_i] = NULL;
+                                currentCmd->next = NULL;
                         }
                 }
-                else
-                { // no metachars present
-                        currentCmd->args[args_i] = token;
-                        //printf("Arg [%d]: %s\n", args_i, currentCmd->args[args_i]);
-                        args_i++;
-                }
-                token = strtok(NULL, " ");
-                //printf("Token: %s\n", token);
-        }
-        currentCmd->args[args_i] = NULL;
-
-        if (mislocated(headCmd, currentCmd) == -1)
-                return -1;
-        // check if read works and create/check write file
-        int fd = 0;
-
-        fd = open(currentCmd->cmdOutput, O_WRONLY | O_CREAT, 0644);
-
-        if (currentCmd->cmdOutput != NULL && fd == -1)
-        {
-                fprintf(stderr, "Error: cannot open output file\n");
-                return -1;
+                
         }
         return 0;
+        
 }
 
 static void redir(struct inputCmd *storeCmd)
@@ -406,7 +449,6 @@ int pipeCount(struct inputCmd *headCmd)
         return count - 1;
 }
 
-// function to wait for all the children in a job to exit and print their exit status
 void printStatus(char *cmd, int statusArr[], int statusArrLen) 
 {
         fprintf(stderr, "+ completed '%s' ", cmd);
@@ -418,11 +460,6 @@ void printStatus(char *cmd, int statusArr[], int statusArrLen)
         fprintf(stderr, "\n");
 }
 
-/**
- * Function to handle background jobs by traversing through the previous nodes,
- * which represents jobs that are still running in background and haven't finished yet
- * When one background job was detected as finished, free that job node
-*/
 void bgJobHandling(struct Jobs *jobs)
 {
         
@@ -430,23 +467,18 @@ void bgJobHandling(struct Jobs *jobs)
         while (jobsTail)
         {
                 int status;
-                // flag for representing all child processes have exited
                 int allComplete = 1;
                 for (int i = 0; i < jobsTail->numProcess; i++)
                 {
-                        // waitpid returns the child's pid upon the child's exit
                         int isComplete = waitpid(jobsTail->pids[i], &status, WNOHANG);
                         if (isComplete)
                         {
                                 jobsTail->exitStats[i] = WEXITSTATUS(status);
                         }
-                        // since array exitStats[] was initialized with all entrys as -5,
-                        // finding one exit status with -5 means there's a child that hasn't finished
                         if (jobsTail->exitStats[i] == -5) {
                                 allComplete = 0;
                         }
                 }
-                // traverse to the previous node
                 struct Jobs* tempPrevJobHolder = jobsTail->prev;
                 if (allComplete) {
                         printStatus(jobsTail->cmd, jobsTail->exitStats, jobsTail->numProcess);
@@ -531,12 +563,11 @@ int pipeExecute(struct inputCmd *head, char *cmd, struct Jobs *jobs)
         {
                 close(pipeFds[i]);
         }
-        // if it's a background job, set the wait flag to 1 and skip the check for children exit
         if (strpbrk(cmd, "&") != NULL)
         {
                 jobs->wait = 1;
+                bgJobHandling(jobs);
         }
-        // wait untill all child processes exit
         else
         {
                 for (int i = 0; i < jobs->numProcess; i++)
@@ -544,7 +575,6 @@ int pipeExecute(struct inputCmd *head, char *cmd, struct Jobs *jobs)
                         waitpid(jobs->pids[i], &status, 0);
                         jobs->exitStats[i] = WEXITSTATUS(status);
                 }
-                // handle background jobs before each command returns
                 bgJobHandling(jobs);
                 printStatus(cmd, jobs->exitStats, jobs->numProcess);
         }
@@ -591,15 +621,12 @@ int main(void)
 
                 /* Builtin command */
                 if (strlen(cmd) == 0) {
-                        // handle background jobs before each command returns
                         bgJobHandling(jobs);
                         continue;
                 }
                 if (!strcmp(cmd, "exit"))
                 {
-                        // handle background jobs before each command returns
                         bgJobHandling(jobs);
-                        // check if there are still background jobs that are running
                         if (jobs->prev) {
                                 fprintf(stderr, "Error: active jobs still running\n");
                                 continue;
@@ -625,7 +652,6 @@ int main(void)
                         cmd, retval);*/
                 if (strcmp(storeCmd.args[0], "pwd") == 0)
                 {
-                        // handle background jobs before each command returns
                         bgJobHandling(jobs);
                         char buff[CMDLINE_MAX];
                         if (getcwd(buff, CMDLINE_MAX) == buff)
@@ -641,7 +667,6 @@ int main(void)
                 }
                 else if (strcmp(storeCmd.args[0], "cd") == 0)
                 {
-                        // handle background jobs before each command returns
                         bgJobHandling(jobs);
                         int result = chdir(storeCmd.args[1]);
                         if (result == 0)
@@ -663,12 +688,10 @@ int main(void)
                 jobs->next = initJobs();
                 jobs->next->prev = jobs;
                 jobs = jobs->next;
-                // if the last entered job is a background one, skip directly to next command prompt
                 if (jobs->prev->wait) 
                 {
                         continue;
                 }
-                // if not, free the last job, since it was definately completed
                 else 
                 {
                         freeJob(jobs->prev);
